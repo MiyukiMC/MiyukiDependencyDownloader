@@ -1,6 +1,6 @@
 plugins {
     id("java")
-    id("com.github.johnrengelman.shadow") version "7.1.0"
+    `maven-publish`
 }
 
 group = "app.miyuki"
@@ -21,7 +21,15 @@ tasks {
     withType<JavaCompile> {
         options.encoding = "UTF-8"
     }
-    shadowJar {
-        archiveFileName.set("MiyukiDependencyDownloader-${project.version}.jar")
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            groupId = project.group.toString()
+            artifactId = "MiyukiDependencyDownloader"
+            version = project.version.toString()
+        }
     }
 }
