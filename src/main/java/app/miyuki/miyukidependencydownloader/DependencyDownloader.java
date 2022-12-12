@@ -4,6 +4,7 @@ import app.miyuki.miyukidependencydownloader.classloader.IsolatedClassloader;
 import app.miyuki.miyukidependencydownloader.dependency.Dependency;
 import app.miyuki.miyukidependencydownloader.downloader.Downloader;
 import app.miyuki.miyukidependencydownloader.exception.DependencyDownloadException;
+import app.miyuki.miyukidependencydownloader.exception.DependencyInjectException;
 import app.miyuki.miyukidependencydownloader.inject.Injector;
 import app.miyuki.miyukidependencydownloader.relocation.Relocation;
 import app.miyuki.miyukidependencydownloader.relocation.Relocator;
@@ -42,26 +43,26 @@ public class DependencyDownloader {
 
     public CompletableFuture<@Nullable IsolatedClassloader> isolate() {
         return download(false)
-                .thenApply(dependencies -> {
-                    if (dependencies.isEmpty()) {
+                .thenApply(downloadedDependencies -> {
+                    if (downloadedDependencies.isEmpty()) {
                         return null;
                     }
 
-                    IsolatedClassloader classLoader = new IsolatedClassloader(this.classLoader);
+                    IsolatedClassloader isolatedClassloader = new IsolatedClassloader(this.classLoader);
 
-                    val sortedDependencies = dependencies.stream()
+                    val sortedDependencies = downloadedDependencies.stream()
                             .sorted(Comparator.comparing(Dependency::getPriority))
                             .collect(Collectors.toList());
 
                     for (Dependency dependency : sortedDependencies) {
                         try {
-                            classLoader.addURL(dependency.getDownloadPath(defaultPath).toUri().toURL());
+                            isolatedClassloader.addURL(dependency.getDownloadPath(defaultPath).toUri().toURL());
                         } catch (MalformedURLException exception) {
-                            throw new RuntimeException("Failed to add dependency to classloader", exception);
+                            throw new DependencyInjectException("Failed to add dependency to classloader", exception);
                         }
                     }
 
-                    return classLoader;
+                    return isolatedClassloader;
 
                 })
                 .exceptionally(exception -> {
@@ -72,10 +73,10 @@ public class DependencyDownloader {
 
     public CompletableFuture<Boolean> inject() {
         return download(true)
-                .thenApply(dependencies -> {
+                .thenApply(downloadedDependencies -> {
                     val injector = new Injector(this.classLoader, this.defaultPath);
 
-                    val sortedDependencies = dependencies.stream()
+                    val sortedDependencies = downloadedDependencies.stream()
                             .sorted(Comparator.comparing(Dependency::getPriority))
                             .collect(Collectors.toList());
 
@@ -83,7 +84,7 @@ public class DependencyDownloader {
                         injector.inject(dependency);
                     }
 
-                    return dependencies;
+                    return downloadedDependencies;
                 })
                 .handle((injected, exception) -> {
                     if (exception != null) {
@@ -91,17 +92,17 @@ public class DependencyDownloader {
                         return false;
                     }
 
-                    return !dependencies.isEmpty();
+                    return injected.size() == dependencies.size();
                 });
     }
 
 
     private CompletableFuture<List<Dependency>> download(boolean relocate) {
         return downloader.downloadAll()
-                .thenApply(dependencies -> {
+                .thenApply(downloadedDependencies -> {
                     val pendentDependencies = this.dependencies
                             .stream()
-                            .filter(dependency -> !dependencies.contains(dependency))
+                            .filter(dependency -> !downloadedDependencies.contains(dependency))
                             .collect(Collectors.toList());
 
                     if (pendentDependencies.size() > 0) {
@@ -120,19 +121,19 @@ public class DependencyDownloader {
 
                     }
 
-                    return dependencies;
+                    return downloadedDependencies;
                 })
                 .exceptionally(exception -> {
                     exception.printStackTrace();
                     return new ArrayList<>();
                 })
-                .thenApplyAsync(dependencies -> {
-                    if (relocate && !dependencies.isEmpty()) {
+                .thenApplyAsync(downloadedDependencies -> {
+                    if (relocate && !downloadedDependencies.isEmpty()) {
                         try (val relocator = new Relocator(this.defaultPath, this.relocations)) {
-                            dependencies.forEach(relocator::relocate);
+                            downloadedDependencies.forEach(relocator::relocate);
                         }
                     }
-                    return dependencies;
+                    return downloadedDependencies;
                 });
     }
 

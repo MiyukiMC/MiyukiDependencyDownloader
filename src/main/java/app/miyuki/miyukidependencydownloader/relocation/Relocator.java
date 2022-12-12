@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +73,14 @@ public class Relocator implements AutoCloseable {
     public boolean relocate(@NotNull Dependency dependency) {
         val relocations = this.relocations.stream().collect(Collectors.toMap(Relocation::getFrom, Relocation::getTo));
         try {
+            val downloadPath = dependency.getDownloadPath(defaultPath);
+            if (!Files.exists(downloadPath))
+                return false;
+
+            val relocationPath = dependency.getDownloadPath(defaultPath);
+            if (Files.exists(relocationPath))
+                return true;
+
             Object relocator = this.jarRelocatorConstructor.newInstance(
                     dependency.getDownloadPath(defaultPath).toFile(),
                     dependency.getRelocationPath(defaultPath).toFile(),
