@@ -77,7 +77,7 @@ public class Relocator implements AutoCloseable {
             if (!Files.exists(downloadPath))
                 return false;
 
-            val relocationPath = dependency.getDownloadPath(defaultPath);
+            val relocationPath = dependency.getRelocationPath(defaultPath);
             if (Files.exists(relocationPath))
                 return true;
 
@@ -86,6 +86,7 @@ public class Relocator implements AutoCloseable {
                     dependency.getRelocationPath(defaultPath).toFile(),
                     relocations
             );
+
             this.jarRelocatorRunMethod.invoke(relocator);
             return true;
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {

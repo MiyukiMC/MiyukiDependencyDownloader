@@ -50,7 +50,7 @@ public class Downloader {
                 );
 
             }
-            CompletableFuture.allOf(downloadingDependencies.toArray(new CompletableFuture[downloadedDependencies.size()])).join();
+            CompletableFuture.allOf(downloadingDependencies.toArray(new CompletableFuture[0])).join();
             return downloadedDependencies;
         });
     }

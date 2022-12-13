@@ -130,7 +130,13 @@ public class DependencyDownloader {
                 .thenApplyAsync(downloadedDependencies -> {
                     if (relocate && !downloadedDependencies.isEmpty()) {
                         try (val relocator = new Relocator(this.defaultPath, this.relocations)) {
-                            downloadedDependencies.forEach(relocator::relocate);
+                            List<CompletableFuture<Boolean>> relocating = new ArrayList<>();
+                            downloadedDependencies
+                                    .forEach(dependency ->
+                                            relocating.add(CompletableFuture.supplyAsync(() -> relocator.relocate(dependency)))
+                                    );
+                            CompletableFuture.allOf(relocating.toArray(new CompletableFuture[0])).join();
+
                         }
                     }
                     return downloadedDependencies;

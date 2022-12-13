@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "app.miyuki"
-version = "1.0.0"
+version = "1.0.3"
 
 repositories {
     mavenCentral()
