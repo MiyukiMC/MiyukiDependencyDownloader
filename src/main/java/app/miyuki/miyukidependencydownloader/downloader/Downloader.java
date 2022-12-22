@@ -61,8 +61,13 @@ public class Downloader {
         if (dependencyUrl == null)
             return false;
 
+        val dependencyPath = dependency.getDownloadPath(defaultPath);
+        if (Files.exists(dependencyPath))
+            return true;
+
         HttpURLConnection connection = null;
         try {
+
             val url = new URL(dependencyUrl);
             connection = (HttpURLConnection) url.openConnection();
             connection.setConnectTimeout(20000);
@@ -73,15 +78,11 @@ public class Downloader {
 
             @Cleanup val inputStream = new BufferedInputStream(connection.getInputStream());
 
-            val dependencyPath = dependency.getDownloadPath(defaultPath);
-
             val dependencyFolder = dependencyPath.getParent();
             if (Files.notExists(dependencyFolder))
                 Files.createDirectories(dependencyFolder);
 
-
-            if (Files.notExists(dependencyPath))
-                Files.copy(inputStream, dependencyPath);
+            Files.copy(inputStream, dependencyPath);
             return true;
         } catch (IOException exception) {
             return false;
