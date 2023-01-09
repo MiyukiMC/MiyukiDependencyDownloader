@@ -42,7 +42,9 @@ public class Downloader {
                         CompletableFuture.runAsync(() -> {
                             for (Repository repository : repositories) {
                                 if (download(dependency, repository, defaultPath)) {
-                                    downloadedDependencies.add(dependency);
+                                    synchronized (downloadedDependencies) {
+                                        downloadedDependencies.add(dependency);
+                                    }
                                     break;
                                 }
                             }
@@ -64,6 +66,7 @@ public class Downloader {
         val dependencyPath = dependency.getDownloadPath(defaultPath);
         if (Files.exists(dependencyPath))
             return true;
+
 
         HttpURLConnection connection = null;
         try {

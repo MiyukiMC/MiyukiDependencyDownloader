@@ -13,10 +13,12 @@ public class IsolatedClassloader extends URLClassLoader {
         super(new URL[0], classLoader);
     }
 
+    @Override
     public void addURL(URL url) {
         super.addURL(url);
     }
 
+    @Override
     public Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
         return  super.loadClass(name, resolve);
     }
