@@ -5,14 +5,15 @@ import app.miyuki.miyukidependencydownloader.dependency.impl.MavenDependency;
 import app.miyuki.miyukidependencydownloader.downloader.Downloader;
 import app.miyuki.miyukidependencydownloader.relocation.Relocation;
 import app.miyuki.miyukidependencydownloader.repository.Repository;
-import lombok.SneakyThrows;
-import lombok.val;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 public class DependencyDownloaderBuilder {
 
@@ -25,6 +26,8 @@ public class DependencyDownloaderBuilder {
     private List<Dependency> dependencies;
 
     private ClassLoader classLoader;
+
+    private ExecutorService executorService;
 
     DependencyDownloaderBuilder() {
         this.defaultPath = null;
@@ -41,6 +44,11 @@ public class DependencyDownloaderBuilder {
 
     public DependencyDownloaderBuilder path(@NotNull Path path) {
         this.defaultPath = path;
+        return this;
+    }
+
+    public DependencyDownloaderBuilder executor(@NotNull ExecutorService executorService) {
+        this.executorService = executorService;
         return this;
     }
 
@@ -95,8 +103,7 @@ public class DependencyDownloaderBuilder {
         return this;
     }
 
-    @SneakyThrows
-    public DependencyDownloader build() {
+    DependencyDownloader build() {
         if (dependencies.isEmpty())
             throw new IllegalArgumentException("Dependencies is empty");
 
@@ -109,46 +116,25 @@ public class DependencyDownloaderBuilder {
         if (defaultPath == null)
             throw new IllegalArgumentException("Path is null");
 
-        val filteredDuplicateDependencies = new ArrayList<Dependency>();
-        for (Dependency dependency : dependencies) {
+        List<Dependency> filteredDuplicateDependencies = dependencies.stream()
+                .filter(MavenDependency.class::isInstance)
+                .collect(Collectors.groupingBy(it -> ((MavenDependency) it).getGroup() + ":" + it.getArtifact()))
+                .values()
+                .stream()
+                .map(it -> it.get(0))
+                .collect(Collectors.toList());
 
-            val duplicate = filteredDuplicateDependencies
-                    .stream()
-                    .filter(it -> it.getArtifact().equals(dependency.getArtifact()))
-                    .filter(it -> !(it instanceof MavenDependency) || ((MavenDependency) it).getGroup().equals(((MavenDependency) dependency).getGroup()))
-                    .findFirst();
-
-            if (duplicate.isPresent())
-                continue;
-
-            filteredDuplicateDependencies.add(dependency);
-        }
-
-        val fixedRepositories = new ArrayList<Repository>();
-        for (Repository repository : repositories) {
-            if (repository.getRepository().endsWith("/"))
-                fixedRepositories.add(repository);
-            else
-                fixedRepositories.add(Repository.of(repository.getRepository() + "/"));
-        }
-
-        val fixedRelocations = new ArrayList<Relocation>();
-        for (Relocation relocation : relocations) {
-            fixedRelocations.add(
-                    Relocation.of(
-                            relocation.getFrom().replace("#", "."),
-                            relocation.getTo().replace("#", ".")
-                    )
-            );
-        }
+        List<Repository> fixedRepositories = repositories.stream()
+                .map(it -> it.getRepository().endsWith("/") ? it : Repository.of(it.getRepository() + "/"))
+                .collect(Collectors.toList());
 
         return new DependencyDownloader(
                 defaultPath,
-                new Downloader(filteredDuplicateDependencies, fixedRepositories, defaultPath),
                 fixedRepositories,
                 filteredDuplicateDependencies,
-                fixedRelocations,
-                classLoader
+                relocations,
+                classLoader,
+                executorService
         );
     }
 

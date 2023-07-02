@@ -35,7 +35,9 @@ public class Reflection extends Injectable {
     @Override
     public void inject(@NotNull Dependency dependency) throws DependencyInjectException {
         try {
-            this.addUrlMethod.invoke(this.classLoader, dependency.getRelocationPath(defaultPath).toUri().toURL());
+            synchronized (addUrlMethod) {
+                addUrlMethod.invoke(this.classLoader, dependency.getRelocationPath(defaultPath).toUri().toURL());
+            }
         } catch (IllegalAccessException | InvocationTargetException | MalformedURLException exception) {
             throw new DependencyInjectException("Failed to inject dependency " + dependency.getArtifact(), exception);
         }

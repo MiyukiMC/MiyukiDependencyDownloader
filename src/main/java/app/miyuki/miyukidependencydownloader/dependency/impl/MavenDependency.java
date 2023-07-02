@@ -1,24 +1,24 @@
 package app.miyuki.miyukidependencydownloader.dependency.impl;
 
 import app.miyuki.miyukidependencydownloader.dependency.Dependency;
+import app.miyuki.miyukidependencydownloader.helper.ConnectionHelper;
+import app.miyuki.miyukidependencydownloader.helper.DocumentParserHelper;
+import app.miyuki.miyukidependencydownloader.relocation.Relocation;
 import app.miyuki.miyukidependencydownloader.repository.Repository;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Objects;
 
-@Getter
 public class MavenDependency extends Dependency {
 
     private static final String MAVEN_FORMAT = "%s%s/%s/%s/%s-%s.jar";
@@ -28,11 +28,15 @@ public class MavenDependency extends Dependency {
 
     private final String group;
 
-    public MavenDependency(int priority, @NotNull String group, @NotNull String artifact, @NotNull String version) {
-        super(priority, artifact, version);
+    public MavenDependency(int priority, @NotNull String group, @NotNull String artifact, @NotNull String version, List<@NotNull Relocation> relocations) {
+        super(priority, artifact, version, relocations);
         this.group = group.replace("#", ".");
     }
 
+
+    public String getGroup() {
+        return group;
+    }
 
     @Override
     public @Nullable String getUrl(@Nullable Repository repository) {
@@ -40,54 +44,42 @@ public class MavenDependency extends Dependency {
             return null;
 
         if (version.contains("SNAPSHOT")) {
-
-            HttpURLConnection connection = null;
             try {
-                val snapshotUrl = new URL(
-                        String.format(
-                                SNAPSHOT_MAVEN_DATA_FORMAT,
-                                repository.getRepository(),
-                                group.replace(".", "/"),
-                                artifact,
-                                version
-                        )
+                String snapshotUrl = String.format(
+                        SNAPSHOT_MAVEN_DATA_FORMAT,
+                        repository.getRepository(),
+                        group.replace(".", "/"),
+                        artifact,
+                        version
                 );
-                connection = (HttpURLConnection) snapshotUrl.openConnection();
-                connection.setConnectTimeout(10000);
-                connection.setReadTimeout(10000);
 
-                connection.connect();
+                HttpURLConnection connection = ConnectionHelper.createConnection(snapshotUrl);
                 if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
                     return null;
                 }
 
-                val documentBuilderFactory = DocumentBuilderFactory.newInstance();
-                val documentBuilder = documentBuilderFactory.newDocumentBuilder();
+                try (BufferedInputStream inputStream = new BufferedInputStream(connection.getInputStream())) {
 
-                @Cleanup val inputStream = new BufferedInputStream(connection.getInputStream());
+                    Document mavenDataDocument = DocumentParserHelper.parseDocument(inputStream);
 
-                val mavenDataDocument = documentBuilder.parse(inputStream);
+                    Element snapshot = (Element) mavenDataDocument.getElementsByTagName("snapshot").item(0);
+                    String timestamp = snapshot.getElementsByTagName("timestamp").item(0).getTextContent();
+                    String buildNumber = snapshot.getElementsByTagName("buildNumber").item(0).getTextContent();
 
-                val snapshot = (Element) mavenDataDocument.getElementsByTagName("snapshot").item(0);
-                val timestamp = snapshot.getElementsByTagName("timestamp").item(0).getTextContent();
-                val buildNumber = snapshot.getElementsByTagName("buildNumber").item(0).getTextContent();
-
-                return String.format(
-                        SNAPSHOT_MAVEN_FORMAT,
-                        repository.getRepository(),
-                        group.replace(".", "/"),
-                        artifact,
-                        version,
-                        artifact,
-                        version.replace("-SNAPSHOT", ""),
-                        timestamp,
-                        buildNumber
-                );
+                    return String.format(
+                            SNAPSHOT_MAVEN_FORMAT,
+                            repository.getRepository(),
+                            group.replace(".", "/"),
+                            artifact,
+                            version,
+                            artifact,
+                            version.replace("-SNAPSHOT", ""),
+                            timestamp,
+                            buildNumber
+                    );
+                }
             } catch (IOException | ParserConfigurationException | SAXException exception) {
                 return null;
-            } finally {
-                if (connection != null)
-                    connection.disconnect();
             }
         } else {
             return String.format(
@@ -119,6 +111,31 @@ public class MavenDependency extends Dependency {
                 .resolve(artifact)
                 .resolve(version)
                 .resolve(artifact + "-" + version + ".relocated.jar");
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        MavenDependency that = (MavenDependency) o;
+        return Objects.equals(group, that.group);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), group);
+    }
+
+    @Override
+    public String toString() {
+        return "MavenDependency{" +
+                "group='" + group + '\'' +
+                ", priority=" + priority +
+                ", artifact='" + artifact + '\'' +
+                ", version='" + version + '\'' +
+                ", relocations=" + relocations +
+                '}';
     }
 
 }

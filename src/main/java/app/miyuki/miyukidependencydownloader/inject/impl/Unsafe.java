@@ -3,7 +3,6 @@ package app.miyuki.miyukidependencydownloader.inject.impl;
 import app.miyuki.miyukidependencydownloader.dependency.Dependency;
 import app.miyuki.miyukidependencydownloader.exception.DependencyInjectException;
 import app.miyuki.miyukidependencydownloader.inject.Injectable;
-import lombok.val;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Field;
@@ -33,6 +32,7 @@ public class Unsafe extends Injectable {
             unsafe = (sun.misc.Unsafe) unsafeField.get(null);
 
             Object ucp = fetchField(unsafe, URLClassLoader.class, classLoader, "ucp");
+
             unopenedURLs = (Collection<URL>) fetchField(unsafe, ucp.getClass(), ucp, "unopenedUrls");
             pathURLs = (Collection<URL>) fetchField(unsafe, ucp.getClass(), ucp, "path");
         } catch (Exception exception) {
@@ -49,9 +49,11 @@ public class Unsafe extends Injectable {
     @Override
     public void inject(@NotNull Dependency dependency) throws DependencyInjectException {
         try {
-            val url = dependency.getRelocationPath(defaultPath).toUri().toURL();
-            unopenedURLs.add(url);
-            pathURLs.add(url);
+            URL url = dependency.getRelocationPath(defaultPath).toUri().toURL();
+            synchronized (unopenedURLs) {
+                unopenedURLs.add(url);
+                pathURLs.add(url);
+            }
         } catch (MalformedURLException exception) {
             throw new DependencyInjectException("Failed to inject dependency " + dependency.getArtifact(), exception);
         }

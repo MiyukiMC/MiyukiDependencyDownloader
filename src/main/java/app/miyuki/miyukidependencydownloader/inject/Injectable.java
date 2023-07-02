@@ -13,7 +13,7 @@ public abstract class Injectable {
 
     protected final Path defaultPath;
 
-    public Injectable(@NotNull URLClassLoader classLoader, @NotNull Path defaultPath) {
+    protected Injectable(@NotNull URLClassLoader classLoader, @NotNull Path defaultPath) {
         this.classLoader = classLoader;
         this.defaultPath = defaultPath;
     }

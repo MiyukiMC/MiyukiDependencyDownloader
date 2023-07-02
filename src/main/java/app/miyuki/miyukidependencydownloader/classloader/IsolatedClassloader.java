@@ -20,7 +20,7 @@ public class IsolatedClassloader extends URLClassLoader {
 
     @Override
     public Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-        return  super.loadClass(name, resolve);
+        return super.loadClass(name, resolve);
     }
 
 }
